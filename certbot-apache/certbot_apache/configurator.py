@@ -26,6 +26,8 @@ from certbot_apache import display_ops
 from certbot_apache import tls_sni_01
 from certbot_apache import obj
 from certbot_apache import parser
+from certbot_apache import distro
+from certbot_apache import override
 
 from collections import defaultdict
 
@@ -122,6 +124,11 @@ class ApacheConfigurator(augeas_configurator.AugeasConfigurator):
         """
         version = kwargs.pop("version", None)
         super(ApacheConfigurator, self).__init__(*args, **kwargs)
+
+        # Detect OS and store distro based overrides class here to avoid
+        # calling the detection code every time we need something.
+        # Hardcoded for POC
+        self.os_info = override.OverrideDebian(self)
 
         # Add name_server association dict
         self.assoc = dict()
@@ -1660,32 +1667,16 @@ class ApacheConfigurator(augeas_configurator.AugeasConfigurator):
 
         return redirects
 
+    @distro.override("is_site_enabled")
     def is_site_enabled(self, avail_fp):
-        """Checks to see if the given site is enabled.
-
-        .. todo:: fix hardcoded sites-enabled, check os.path.samefile
-
-        :param str avail_fp: Complete file path of available site
+        """Checks to see if the given site is enabled. Default: always enabled
 
         :returns: Success
         :rtype: bool
 
         """
 
-        enabled_dir = os.path.join(self.parser.root, "sites-enabled")
-        if not os.path.isdir(enabled_dir):
-            error_msg = ("Directory '{0}' does not exist. Please ensure "
-                         "that the values for --apache-handle-sites and "
-                         "--apache-server-root are correct for your "
-                         "environment.".format(enabled_dir))
-            raise errors.ConfigurationError(error_msg)
-        for entry in os.listdir(enabled_dir):
-            try:
-                if filecmp.cmp(avail_fp, os.path.join(enabled_dir, entry)):
-                    return True
-            except OSError:
-                pass
-        return False
+        return True
 
     def enable_site(self, vhost):
         """Enables an available site, Apache reload required.
