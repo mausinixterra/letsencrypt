@@ -18,10 +18,10 @@ from certbot import errors
 from certbot.tests import acme_util
 from certbot.tests import util as certbot_util
 
-from certbot_apache import configurator
 from certbot_apache import constants
 from certbot_apache import parser
 from certbot_apache import obj
+from certbot_apache import apache_util
 
 from certbot_apache.tests import util
 
@@ -163,13 +163,11 @@ class MultipleVhostsTest(util.ApacheTest):
         self.assertTrue("certbot.demo" in names)
 
     def test_get_bad_path(self):
-        from certbot_apache.configurator import get_file_path
-        self.assertEqual(get_file_path(None), None)
-        self.assertEqual(get_file_path("nonexistent"), None)
+        self.assertEqual(apache_util.get_file_path(None), None)
+        self.assertEqual(apache_util.get_file_path("nonexistent"), None)
         self.assertEqual(self.config._create_vhost("nonexistent"), None) # pylint: disable=protected-access
 
     def test_get_aug_internal_path(self):
-        from certbot_apache.configurator import get_internal_aug_path
         internal_paths = [
             "VirtualHost", "IfModule/VirtualHost", "VirtualHost", "VirtualHost",
             "Macro/VirtualHost", "IfModule/VirtualHost", "VirtualHost",
@@ -177,7 +175,8 @@ class MultipleVhostsTest(util.ApacheTest):
 
         for i, internal_path in enumerate(internal_paths):
             self.assertEqual(
-                get_internal_aug_path(self.vh_truth[i].path), internal_path)
+                apache_util.get_internal_aug_path(self.vh_truth[i].path),
+                internal_path)
 
     def test_bad_servername_alias(self):
         ssl_vh1 = obj.VirtualHost(
@@ -344,6 +343,11 @@ class MultipleVhostsTest(util.ApacheTest):
         self.assertRaises(
             errors.MisconfigurationError, self.config.enable_mod, "ssl")
 
+    def test_enable_mod_nonexistent(self):
+        from certbot_apache import override_centos
+        self.config.os_info = override_centos.Override(self.config)
+        self.assertEqual(self.config.enable_mod("ssl"), None)
+
     def test_enable_site_already_enabled(self):
         self.assertTrue(self.vh_truth[1].enabled)
         self.config.enable_site(self.vh_truth[1])
@@ -354,6 +358,11 @@ class MultipleVhostsTest(util.ApacheTest):
             errors.NotSupportedError,
             self.config.enable_site,
             obj.VirtualHost("asdf", "afsaf", set(), False, False))
+
+    def test_enable_site_nonexistent(self):
+        from certbot_apache import override_centos
+        self.config.os_info = override_centos.Override(self.config)
+        self.assertEqual(self.config.enable_site(self.vh_truth[1]), None)
 
     def test_deploy_cert_enable_new_vhost(self):
         # Create
@@ -402,12 +411,12 @@ class MultipleVhostsTest(util.ApacheTest):
         # Verify one directive was found in the correct file
         self.assertEqual(len(loc_cert), 1)
         self.assertEqual(
-            configurator.get_file_path(loc_cert[0]),
+            apache_util.get_file_path(loc_cert[0]),
             self.vh_truth[1].filep)
 
         self.assertEqual(len(loc_key), 1)
         self.assertEqual(
-            configurator.get_file_path(loc_key[0]),
+            apache_util.get_file_path(loc_key[0]),
             self.vh_truth[1].filep)
 
     def test_deploy_cert_newssl_no_fullchain(self):
@@ -468,17 +477,17 @@ class MultipleVhostsTest(util.ApacheTest):
         # Verify one directive was found in the correct file
         self.assertEqual(len(loc_cert), 1)
         self.assertEqual(
-            configurator.get_file_path(loc_cert[0]),
+            apache_util.get_file_path(loc_cert[0]),
             self.vh_truth[1].filep)
 
         self.assertEqual(len(loc_key), 1)
         self.assertEqual(
-            configurator.get_file_path(loc_key[0]),
+            apache_util.get_file_path(loc_key[0]),
             self.vh_truth[1].filep)
 
         self.assertEqual(len(loc_chain), 1)
         self.assertEqual(
-            configurator.get_file_path(loc_chain[0]),
+            apache_util.get_file_path(loc_chain[0]),
             self.vh_truth[1].filep)
 
         # One more time for chain directive setting
@@ -884,7 +893,7 @@ class MultipleVhostsTest(util.ApacheTest):
         self.assertTrue(isinstance(self.config.get_chall_pref(""), list))
 
     def test_install_ssl_options_conf(self):
-        from certbot_apache.configurator import install_ssl_options_conf
+        from certbot_apache.constants import install_ssl_options_conf
         path = os.path.join(self.work_dir, "test_it")
         other_path = os.path.join(self.work_dir, "other_test_it")
         install_ssl_options_conf(path, other_path)
@@ -1507,7 +1516,7 @@ class InstallSslOptionsConfTest(util.ApacheTest):
             self.config_path, self.vhost_path, self.config_dir, self.work_dir)
 
     def _call(self):
-        from certbot_apache.configurator import install_ssl_options_conf
+        from certbot_apache.constants import install_ssl_options_conf
         install_ssl_options_conf(self.config.mod_ssl_conf, self.config.updated_mod_ssl_conf_digest)
 
     def _current_ssl_options_hash(self):

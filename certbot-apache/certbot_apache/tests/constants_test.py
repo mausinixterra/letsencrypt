@@ -38,6 +38,8 @@ class ConstantsTest(unittest.TestCase):
         self.assertFalse(constants.os_constant("enmod"))
         self.assertEqual(constants.os_constant("vhost_root"),
                          "/etc/apache2/other")
+        self.assertEqual(constants.get_override(object), None)
+
 
 
 if __name__ == "__main__":
